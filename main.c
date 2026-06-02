@@ -57,8 +57,8 @@ int main() {
   fclose(file_ta);
   bool ta_crlf = buffer_ta[WORDLEN] == '\r';
   assert((buffer_ta[WORDLEN] == '\r' && buffer_ta[WORDLEN] == '\n') ^ buffer_ta[WORDLEN] == '\n');
-  size_t elementlen_ta = WORDLEN + 1 + ta_crlf;
-  size_t count_ta = file_ta_len / elementlen_ta;
+  assert(elementlen_la == WORDLEN + 1 + ta_crlf);
+  size_t count_ta = file_ta_len / elementlen_la;
 
   printf("Welcome to Wordle!\n");
   for (size_t i = 0; i < WORDLEN; ++i) putc('_', stdout);
@@ -91,6 +91,26 @@ int main() {
     } else if ((char)input == '\n') {
     } else goto break_long;
     if (invalid_char) goto break_invalid_char;
+
+    bool valid = false;
+    for (size_t i = 0; i < count_la; ++i) {
+      if (memcmp(buf, &buffer_la[i * elementlen_la], WORDLEN) == 0) {
+        valid = true;
+        break;
+      }
+    }
+    if (!valid) {
+      for (size_t i = 0; i < count_ta; ++i) {
+        if (memcmp(buf, &buffer_ta[i * elementlen_la], WORDLEN) == 0) {
+          valid = true;
+          break;
+        }
+      }
+    }
+    if (!valid) {
+      printf("\033[A\033[2K\r\033[%uC\e[0;31mError: word not in the list\e[0m\r", WORDLEN + 1);
+      continue;
+    }
 
     goto break_end;
 
