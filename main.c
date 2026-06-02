@@ -24,14 +24,14 @@
 
 int main() {
   FILE *file_la = fopen(FILELA, "rb");
-  if (!file_la) return 1;
+  if (!file_la) goto exit_error_file;
   fseek(file_la, 0, SEEK_END);
   size_t file_la_len = ftell(file_la);
   fseek(file_la, 0, SEEK_SET);
   char *buffer_la = malloc(file_la_len + 1);
   if (!buffer_la) {
     fclose(file_la);
-    return 1;
+    goto exit_error_allocation;
   }
   fread(buffer_la, 1, file_la_len, file_la);
   buffer_la[file_la_len] = 0;
@@ -42,14 +42,15 @@ int main() {
   size_t count_la = file_la_len / elementlen_la;
 
   FILE *file_ta = fopen(FILETA, "rb");
-  if (!file_ta) return 1;
+  if (!file_ta) goto exit_error_file;
+
   fseek(file_ta, 0, SEEK_END);
   size_t file_ta_len = ftell(file_ta);
   fseek(file_ta, 0, SEEK_SET);
   char *buffer_ta = malloc(file_ta_len + 1);
   if (!buffer_ta) {
     fclose(file_ta);
-    return 1;
+    goto exit_error_allocation;
   }
   fread(buffer_ta, 1, file_ta_len, file_ta);
   buffer_ta[file_ta_len] = 0;
@@ -72,7 +73,7 @@ int main() {
     bool invalid_char = false;
     for (size_t i = 0; i < WORDLEN; ++i) {
       input = getchar();
-      if (input == EOF) return 1;
+      if (input == EOF) goto exit_error_stdin;
 
       char inputchar = (char)input;
       if (inputchar == '\r') goto break_short_r;
@@ -83,10 +84,10 @@ int main() {
       buf[i] = inputchar;
     }
     input = getchar();
-    if (input == EOF) return 1;
+    if (input == EOF) goto exit_error_stdin;
     if ((char)input == '\r') {
       input = getchar();
-      if (input == EOF) return 1;
+      if (input == EOF) goto exit_error_stdin;
     } else if ((char)input == '\n') {
     } else goto break_long;
     if (invalid_char) goto break_invalid_char;
@@ -95,7 +96,7 @@ int main() {
 
 break_short_r:
     input = getchar();
-    if (input == EOF) return 1;
+    if (input == EOF) goto exit_error_stdin;
     goto break_short;
 break_short:
     printf("\033[A\033[2K\r\033[%uC\e[0;31mError: word is too short\e[0m\r", WORDLEN + 1);
@@ -104,7 +105,7 @@ break_long:
     printf("\033[A\033[2K\r\033[%uC\e[0;31mError: word is too long\e[0m\r", WORDLEN + 1);
     do {
       input = getchar();
-      if (input == EOF) return 1;
+      if (input == EOF) goto exit_error_stdin;
     } while ((char)input != '\n');
     continue;
 break_invalid_char:
@@ -152,6 +153,20 @@ break_end:
     t += 1;
   }
 
+  fflush(stdout);
   return 0;
+
+exit_error_file:
+  printf("\n\e[0;31mError opening a file\e[0m\n");
+  fflush(stdout);
+  return 1;
+exit_error_allocation:
+  printf("\n\e[0;31mError allocating memory\e[0m\n");
+  fflush(stdout);
+  return 1;
+exit_error_stdin:
+  printf("\n\e[0;31mError reading standard input\e[0m\n");
+  fflush(stdout);
+  return 1;
 }
 
