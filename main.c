@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 
 
 #ifndef WORDLEN
@@ -60,12 +61,21 @@ int main() {
   assert(elementlen_la == WORDLEN + 1 + ta_crlf);
   size_t count_ta = file_ta_len / elementlen_la;
 
+  srand((unsigned)time(NULL));  size_t x;
+  size_t limit = (size_t)-1 - ((size_t)-1 % (count_la + 1));
+  do {
+    x = rand();
+    x = (x << 16) ^ rand();
+  } while (x > limit);
+  size_t word_index = x % (count_la + 1);
+
   printf("Welcome to Wordle!\n");
   for (size_t i = 0; i < WORDLEN; ++i) putc('_', stdout);
   putc('\r', stdout);
 
   char buf[WORDLEN] = {0};
-  char word[WORDLEN] = "table";
+  char word[WORDLEN];
+  memcpy(word, &buffer_ta[word_index * elementlen_la], WORDLEN);
   bool used[WORDLEN];
   int input;
 
@@ -172,6 +182,8 @@ break_end:
 
     t += 1;
   }
+
+  printf("\nThe word was '%.*s'\n", (unsigned int) WORDLEN, word);
 
   fflush(stdout);
   return 0;
