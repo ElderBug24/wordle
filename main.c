@@ -6,6 +6,12 @@
 #include <assert.h>
 #include <time.h>
 
+#define INCLUDEDICTIONARIES
+
+#ifdef INCLUDEDICTIONARIES
+#include "dictionaries.h"
+#endif
+
 
 #ifndef WORDLEN
 #define WORDLEN 5
@@ -24,6 +30,7 @@
 #endif
 
 int main() {
+#ifndef INCLUDEDICTIONARIES
   FILE *file_la = fopen(FILELA, "rb");
   if (!file_la) goto exit_error_file;
   fseek(file_la, 0, SEEK_END);
@@ -37,10 +44,7 @@ int main() {
   fread(buffer_la, 1, file_la_len, file_la);
   buffer_la[file_la_len] = 0;
   fclose(file_la);
-  bool la_crlf = buffer_la[WORDLEN] == '\r';
   assert((buffer_la[WORDLEN] == '\r' && buffer_la[WORDLEN] == '\n') ^ buffer_la[WORDLEN] == '\n');
-  size_t elementlen_la = WORDLEN + 1 + la_crlf;
-  size_t count_la = file_la_len / elementlen_la;
 
   FILE *file_ta = fopen(FILETA, "rb");
   if (!file_ta) goto exit_error_file;
@@ -56,8 +60,18 @@ int main() {
   fread(buffer_ta, 1, file_ta_len, file_ta);
   buffer_ta[file_ta_len] = 0;
   fclose(file_ta);
-  bool ta_crlf = buffer_ta[WORDLEN] == '\r';
   assert((buffer_ta[WORDLEN] == '\r' && buffer_ta[WORDLEN] == '\n') ^ buffer_ta[WORDLEN] == '\n');
+#else
+  size_t file_la_len = wordle_La_txt_len;
+  char* buffer_la = wordle_La_txt;
+  size_t file_ta_len = wordle_Ta_txt_len;
+  char* buffer_ta = wordle_Ta_txt;
+#endif
+
+  bool la_crlf = buffer_la[WORDLEN] == '\r';
+  size_t elementlen_la = WORDLEN + 1 + la_crlf;
+  size_t count_la = file_la_len / elementlen_la;
+  bool ta_crlf = buffer_ta[WORDLEN] == '\r';
   assert(elementlen_la == WORDLEN + 1 + ta_crlf);
   size_t count_ta = file_ta_len / elementlen_la;
 
