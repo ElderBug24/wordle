@@ -185,6 +185,11 @@ break_end:
 
   printf("\nThe word was '%.*s'\n", (unsigned int) WORDLEN, word);
 
+#ifdef TERMSAFETY
+  printf("Press enter to exit...");
+  (void)getchar();
+#endif
+
   fflush(stdout);
   return 0;
 
