@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <assert.h>
 
 
 #ifndef WORDLEN
@@ -13,8 +15,50 @@
 #ifndef COLORBACKGROUND
 #define COLORBACKGROUND false
 #endif
+#ifndef FILELA
+#define FILELA "wordle-La.txt"
+#endif
+#ifndef FILETA
+#define FILETA "wordle-Ta.txt"
+#endif
 
 int main() {
+  FILE *file_la = fopen(FILELA, "rb");
+  if (!file_la) return 1;
+  fseek(file_la, 0, SEEK_END);
+  size_t file_la_len = ftell(file_la);
+  fseek(file_la, 0, SEEK_SET);
+  char *buffer_la = malloc(file_la_len + 1);
+  if (!buffer_la) {
+    fclose(file_la);
+    return 1;
+  }
+  fread(buffer_la, 1, file_la_len, file_la);
+  buffer_la[file_la_len] = 0;
+  fclose(file_la);
+  bool la_crlf = buffer_la[WORDLEN] == '\r';
+  assert((buffer_la[WORDLEN] == '\r' && buffer_la[WORDLEN] == '\n') ^ buffer_la[WORDLEN] == '\n');
+  size_t elementlen_la = WORDLEN + 1 + la_crlf;
+  size_t count_la = file_la_len / elementlen_la;
+
+  FILE *file_ta = fopen(FILETA, "rb");
+  if (!file_ta) return 1;
+  fseek(file_ta, 0, SEEK_END);
+  size_t file_ta_len = ftell(file_ta);
+  fseek(file_ta, 0, SEEK_SET);
+  char *buffer_ta = malloc(file_ta_len + 1);
+  if (!buffer_ta) {
+    fclose(file_ta);
+    return 1;
+  }
+  fread(buffer_ta, 1, file_ta_len, file_ta);
+  buffer_ta[file_ta_len] = 0;
+  fclose(file_ta);
+  bool ta_crlf = buffer_ta[WORDLEN] == '\r';
+  assert((buffer_ta[WORDLEN] == '\r' && buffer_ta[WORDLEN] == '\n') ^ buffer_ta[WORDLEN] == '\n');
+  size_t elementlen_ta = WORDLEN + 1 + ta_crlf;
+  size_t count_ta = file_ta_len / elementlen_ta;
+
   printf("Welcome to Wordle!\n");
   for (size_t i = 0; i < WORDLEN; ++i) putc('_', stdout);
   putc('\r', stdout);
