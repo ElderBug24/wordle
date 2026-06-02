@@ -44,7 +44,7 @@ int main() {
   fread(buffer_la, 1, file_la_len, file_la);
   buffer_la[file_la_len] = 0;
   fclose(file_la);
-  assert((buffer_la[WORDLEN] == '\r' && buffer_la[WORDLEN] == '\n') ^ buffer_la[WORDLEN] == '\n');
+  assert((buffer_la[WORDLEN] == '\r' && buffer_la[WORDLEN + 1] == '\n') ^ buffer_la[WORDLEN] == '\n');
 
   FILE *file_ta = fopen(FILETA, "rb");
   if (!file_ta) goto exit_error_file;
@@ -60,7 +60,7 @@ int main() {
   fread(buffer_ta, 1, file_ta_len, file_ta);
   buffer_ta[file_ta_len] = 0;
   fclose(file_ta);
-  assert((buffer_ta[WORDLEN] == '\r' && buffer_ta[WORDLEN] == '\n') ^ buffer_ta[WORDLEN] == '\n');
+  assert((buffer_ta[WORDLEN] == '\r' && buffer_ta[WORDLEN + 1] == '\n') ^ buffer_ta[WORDLEN] == '\n');
 #else
   size_t file_la_len = wordle_La_txt_len;
   char* buffer_la = wordle_La_txt;
@@ -72,11 +72,12 @@ int main() {
   size_t elementlen_la = WORDLEN + 1 + la_crlf;
   size_t count_la = file_la_len / elementlen_la;
   bool ta_crlf = buffer_ta[WORDLEN] == '\r';
-  assert(elementlen_la == WORDLEN + 1 + ta_crlf);
   size_t count_ta = file_ta_len / elementlen_la;
+  assert(la_crlf == ta_crlf);
 
-  srand((unsigned)time(NULL));  size_t x;
-  size_t limit = (size_t)-1 - ((size_t)-1 % (count_la + 1));
+  srand((unsigned)time(NULL));
+  size_t x;
+  size_t limit = (size_t) -1 - ((size_t) -1 % (count_la + 1));
   do {
     x = rand();
     x = (x << 16) ^ rand();
@@ -117,17 +118,33 @@ int main() {
     if (invalid_char) goto break_invalid_char;
 
     bool valid = false;
-    for (size_t i = 0; i < count_la; ++i) {
-      if (memcmp(buf, &buffer_la[i * elementlen_la], WORDLEN) == 0) {
+    size_t min = 0;
+    size_t max = count_la;
+    while (min < max) {
+      size_t index = min + (max - min) / 2;
+      int cmp = memcmp(buf, &buffer_la[index * elementlen_la], WORDLEN);
+      if (cmp == 0) {
         valid = true;
         break;
+      } else if (cmp < 0) {
+        max = index;
+      } else {
+        min = index + 1;
       }
     }
+    min = 0;
+    max = count_ta;
     if (!valid) {
-      for (size_t i = 0; i < count_ta; ++i) {
-        if (memcmp(buf, &buffer_ta[i * elementlen_la], WORDLEN) == 0) {
+      while (min < max) {
+        size_t index = min + (max - min) / 2;
+        int cmp = memcmp(buf, &buffer_ta[index * elementlen_la], WORDLEN);
+        if (cmp == 0) {
           valid = true;
           break;
+        } else if (cmp < 0) {
+          max = index;
+        } else {
+          min = index + 1;
         }
       }
     }
