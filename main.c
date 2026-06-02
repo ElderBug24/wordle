@@ -118,6 +118,22 @@ int main() {
     if (invalid_char) goto break_invalid_char;
 
     bool valid = false;
+#ifdef NOBINARYSEARCH
+    for (size_t i = 0; i < count_la; ++i) {
+      if (memcmp(buf, &buffer_la[i * elementlen_la], WORDLEN) == 0) {
+        valid = true;
+        break;
+      }
+    }
+    if (!valid) {
+      for (size_t i = 0; i < count_ta; ++i) {
+        if (memcmp(buf, &buffer_ta[i * elementlen_la], WORDLEN) == 0) {
+          valid = true;
+          break;
+        }
+      }
+    }
+#else
     size_t min = 0;
     size_t max = count_la;
     while (min < max) {
@@ -148,6 +164,8 @@ int main() {
         }
       }
     }
+#endif
+
     if (!valid) {
       printf("\033[A\033[2K\r\033[%uC\e[0;31mError: word not in the list\e[0m\r", WORDLEN + 1);
       continue;
