@@ -90,7 +90,7 @@ int main() {
 
   char buf[WORDLEN] = {0};
   char word[WORDLEN];
-  memcpy(word, &buffer_ta[word_index * elementlen_la], WORDLEN);
+  memcpy(word, &buffer_la[word_index * elementlen_la], WORDLEN);
   bool used[WORDLEN];
   int input;
 
