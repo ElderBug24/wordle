@@ -3,19 +3,14 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <time.h>
 
-#ifndef INCLUDEDICTIONARIES
-#define INCLUDEDICTIONARIES true
-#endif
 #ifndef DISPLAYKEYBOARD
 #define DISPLAYKEYBOARD true
 #endif
 
-#if INCLUDEDICTIONARIES
-#include "dictionaries.h"
-#endif
+#include "wordle-La-compact.h"
+#include "wordle-Ta-compact.h"
 
 #ifndef WORDLEN
 #define WORDLEN 5
@@ -48,50 +43,13 @@
 #define COLOR_GREY "58;58;60"
 
 int main() {
-#if !INCLUDEDICTIONARIES
-  FILE *file_la = fopen(FILELA, "rb");
-  if (!file_la) goto exit_error_file;
-  fseek(file_la, 0, SEEK_END);
-  size_t file_la_len = ftell(file_la);
-  fseek(file_la, 0, SEEK_SET);
-  char *buffer_la = malloc(file_la_len + 1);
-  if (!buffer_la) {
-    fclose(file_la);
-    goto exit_error_allocation;
-  }
-  fread(buffer_la, 1, file_la_len, file_la);
-  buffer_la[file_la_len] = 0;
-  fclose(file_la);
-  assert((buffer_la[WORDLEN] == '\r' && buffer_la[WORDLEN + 1] == '\n') ^ buffer_la[WORDLEN] == '\n');
+  size_t file_la_len = wordle_La_compact_txt_len;
+  char* buffer_la = wordle_La_compact_txt;
+  size_t file_ta_len = wordle_Ta_compact_txt_len;
+  char* buffer_ta = wordle_Ta_compact_txt;
 
-  FILE *file_ta = fopen(FILETA, "rb");
-  if (!file_ta) goto exit_error_file;
-
-  fseek(file_ta, 0, SEEK_END);
-  size_t file_ta_len = ftell(file_ta);
-  fseek(file_ta, 0, SEEK_SET);
-  char *buffer_ta = malloc(file_ta_len + 1);
-  if (!buffer_ta) {
-    fclose(file_ta);
-    goto exit_error_allocation;
-  }
-  fread(buffer_ta, 1, file_ta_len, file_ta);
-  buffer_ta[file_ta_len] = 0;
-  fclose(file_ta);
-  assert((buffer_ta[WORDLEN] == '\r' && buffer_ta[WORDLEN + 1] == '\n') ^ buffer_ta[WORDLEN] == '\n');
-#else
-  size_t file_la_len = wordle_La_txt_len;
-  char* buffer_la = wordle_La_txt;
-  size_t file_ta_len = wordle_Ta_txt_len;
-  char* buffer_ta = wordle_Ta_txt;
-#endif
-
-  bool la_crlf = buffer_la[WORDLEN] == '\r';
-  size_t elementlen_la = WORDLEN + 1 + la_crlf;
-  size_t count_la = file_la_len / elementlen_la;
-  bool ta_crlf = buffer_ta[WORDLEN] == '\r';
-  size_t count_ta = file_ta_len / elementlen_la;
-  assert(la_crlf == ta_crlf);
+  size_t count_la = file_la_len / WORDLEN;
+  size_t count_ta = file_ta_len / WORDLEN;
 
   srand((unsigned)time(NULL));
   size_t x;
@@ -112,7 +70,7 @@ int main() {
   int input;
   uint8_t letters_state[LETTERSCOUNT];
 
-  memcpy(word, &buffer_la[word_index * elementlen_la], WORDLEN);
+  memcpy(word, &buffer_la[word_index * WORDLEN], WORDLEN);
   memset(letters_state, LETTER_UNKNOWN, LETTERSCOUNT);
 
   for (size_t t = 0; t < TRIALS;) {
@@ -159,7 +117,7 @@ int main() {
     size_t max = count_la;
     while (min < max) {
       size_t index = min + (max - min) / 2;
-      int cmp = memcmp(buf, &buffer_la[index * elementlen_la], WORDLEN);
+      int cmp = memcmp(buf, &buffer_la[index * WORDLEN], WORDLEN);
       if (cmp == 0) {
         valid = true;
         break;
@@ -174,7 +132,7 @@ int main() {
     if (!valid) {
       while (min < max) {
         size_t index = min + (max - min) / 2;
-        int cmp = memcmp(buf, &buffer_ta[index * elementlen_la], WORDLEN);
+        int cmp = memcmp(buf, &buffer_ta[index * WORDLEN], WORDLEN);
         if (cmp == 0) {
           valid = true;
           break;
@@ -252,7 +210,7 @@ break_end:
     putc('\n', stdout);
 
 #if DISPLAYKEYBOARD
-    putc('\n', stdout);
+    printf("\n\033[2K");
     for (size_t i = 0; i < strlen(KEYBOARD_ROW1); ++i) {
       char c = KEYBOARD_ROW1[i];
       switch (letters_state[c - 'a']) {
@@ -271,7 +229,7 @@ break_end:
       putc(c, stdout);
       printf("\033[0m");
     }
-    putc('\n', stdout);
+    printf("\n\033[2K");
     for (size_t i = 0; i < strlen(KEYBOARD_ROW2); ++i) {
       char c = KEYBOARD_ROW2[i];
       switch (letters_state[c - 'a']) {
@@ -290,7 +248,7 @@ break_end:
       putc(c, stdout);
       printf("\033[0m");
     }
-    printf("\n ");
+    printf("\n\033[2K ");
     for (size_t i = 0; i < strlen(KEYBOARD_ROW3); ++i) {
       char c = KEYBOARD_ROW3[i];
       switch (letters_state[c - 'a']) {
