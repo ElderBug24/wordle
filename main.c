@@ -19,7 +19,7 @@ void enable_raw_mode() {
   struct termios raw;
   tcgetattr(STDIN_FILENO, &orig);
   raw = orig;
-  raw.c_lflag &= ~(ICANON | ECHO);
+  raw.c_lflag &= (tcflag_t) ~(ICANON | ECHO);
   raw.c_cc[VMIN] = 1;
   raw.c_cc[VTIME] = 0;
   tcsetattr(STDIN_FILENO, TCSANOW, &raw);
