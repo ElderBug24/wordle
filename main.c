@@ -1,9 +1,35 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
+#include <signal.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+
+
+#ifdef _WIN32
+#include <conio.h>
+void enable_raw_mode() {}
+void disable_raw_mode() {}
+#else
+#include <termios.h>
+#include <unistd.h>
+struct termios orig;
+void enable_raw_mode() {
+  struct termios raw;
+  tcgetattr(STDIN_FILENO, &orig);
+  raw = orig;
+  raw.c_lflag &= ~(ICANON | ECHO);
+  raw.c_cc[VMIN] = 1;
+  raw.c_cc[VTIME] = 0;
+  tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+}
+void disable_raw_mode() {
+  tcsetattr(STDIN_FILENO, TCSANOW, &orig);
+}
+typedef int(*getch_t)(void);
+getch_t getch = getchar;
+#endif
 
 #ifndef DISPLAYKEYBOARD
 #define DISPLAYKEYBOARD true
@@ -11,6 +37,7 @@
 
 #include "wordle-La-compact.h"
 #include "wordle-Ta-compact.h"
+#include "definitions.h"
 
 #ifndef WORDLEN
 #define WORDLEN 5
@@ -18,21 +45,17 @@
 #ifndef TRIALS
 #define TRIALS 6
 #endif
-#ifndef COLORBACKGROUND
-#define COLORBACKGROUND false
-#endif
-#ifndef FILELA
-#define FILELA "wordle-La.txt"
-#endif
-#ifndef FILETA
-#define FILETA "wordle-Ta.txt"
+#ifndef WORDDEFINITIONLEN
+#define WORDDEFINITIONLEN 64
 #endif
 
 #define LETTERSCOUNT ('z' - 'a' + 1)
-#define LETTER_UNKNOWN 0
-#define LETTER_RIGHT 1
-#define LETTER_WRONG 2
-#define LETTER_ABSENT 3
+enum {
+  LETTER_UNKNOWN = 0,
+  LETTER_RIGHT,
+  LETTER_WRONG,
+  LETTER_ABSENT
+};
 
 #define KEYBOARD_ROW1 "qwertyuiop"
 #define KEYBOARD_ROW2 "asdfghjkl"
@@ -42,135 +65,155 @@
 #define COLOR_YELLOW "181;159;59"
 #define COLOR_GREY "58;58;60"
 
-int main() {
-  size_t file_la_len = wordle_La_compact_txt_len;
-  char* buffer_la = wordle_La_compact_txt;
-  size_t file_ta_len = wordle_Ta_compact_txt_len;
-  char* buffer_ta = wordle_Ta_compact_txt;
+char word[WORDLEN];
+size_t word_index;
+
+typedef enum {
+  QUIT_CORRECT,
+  QUIT_ERR_STDIN
+} quit_code_e;
+
+void quit(quit_code_e code) {
+  switch (code) {
+    case QUIT_CORRECT: {
+#if DISPLAYKEYBOARD
+      printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
+#endif
+      printf("\nCorrect!\n%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
+      fflush(stdout);
+      exit(0);
+    }
+    case QUIT_ERR_STDIN: {
+#if DISPLAYKEYBOARD
+      printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
+#endif
+      printf("\n\033[0;31mError reading standard input\033[0m\nThe word was '%.*s'\n%.*s\n", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
+      fflush(stdout);
+      exit(1);
+    }
+  }
+}
+
+void handler(int sig) {
+  (void) sig;
+  quit(QUIT_ERR_STDIN);
+}
+
+#ifdef _WIN32
+enum {
+  CHAR_ENTER     =  13,
+  CHAR_BACKSPACE =   8,
+  CHAR_CTRLC     =   3
+};
+#else
+enum {
+  CHAR_ENTER     =  10,
+  CHAR_BACKSPACE = 127,
+  CHAR_CTRLC     =   3
+};
+#endif
+
+int main(void) {
+  signal(SIGINT, handler);
 
   size_t count_la = file_la_len / WORDLEN;
   size_t count_ta = file_ta_len / WORDLEN;
+  char buf[WORDLEN];
+  bool used[WORDLEN];
 
   srand((unsigned)time(NULL));
-  size_t x;
-  size_t limit = (size_t) -1 - ((size_t) -1 % (count_la + 1));
-  do {
-    x = rand();
-    x = (x << 16) ^ rand();
-  } while (x > limit);
-  size_t word_index = x % (count_la + 1);
+  word_index = (size_t) rand() % count_la;
 
   printf("Welcome to Wordle!\n");
-  for (size_t i = 0; i < WORDLEN; ++i) putc('_', stdout);
-  putc('\r', stdout);
-
-  char buf[WORDLEN] = {0};
-  char word[WORDLEN];
-  bool used[WORDLEN];
-  int input;
-  uint8_t letters_state[LETTERSCOUNT];
-
+  for (size_t i = 0; i < WORDLEN; ++i) putchar('_');
+  putchar('\r');
+  uint8_t letters_state[LETTERSCOUNT] = {0};
   memcpy(word, &buffer_la[word_index * WORDLEN], WORDLEN);
-  memset(letters_state, LETTER_UNKNOWN, LETTERSCOUNT);
 
   for (size_t t = 0; t < TRIALS;) {
-    bool invalid_char = false;
-    for (size_t i = 0; i < WORDLEN; ++i) {
-      input = getchar();
-      if (input == EOF) goto exit_error_stdin;
+    unsigned char buf_count = 0;
+    bool input = true;
+    enable_raw_mode();
+    while (input) {
+      int c = _getch();
 
-      char inputchar = (char)input;
-      if (inputchar == '\r') goto break_short_r;
-      if (inputchar == '\n') goto break_short;
-      if (!((inputchar >= 'A' && inputchar <= 'Z') || (inputchar >= 'a' && inputchar <= 'z'))) invalid_char = true;
-      else if (inputchar >= 'A' && inputchar <= 'Z') inputchar += ('a' - 'A');
-
-      buf[i] = inputchar;
-    }
-    input = getchar();
-    if (input == EOF) goto exit_error_stdin;
-    if ((char)input == '\r') {
-      input = getchar();
-      if (input == EOF) goto exit_error_stdin;
-    } else if ((char)input == '\n') {
-    } else goto break_long;
-    if (invalid_char) goto break_invalid_char;
-
-    bool valid = false;
-#ifdef NOBINARYSEARCH
-    for (size_t i = 0; i < count_la; ++i) {
-      if (memcmp(buf, &buffer_la[i * elementlen_la], WORDLEN) == 0) {
-        valid = true;
-        break;
-      }
-    }
-    if (!valid) {
-      for (size_t i = 0; i < count_ta; ++i) {
-        if (memcmp(buf, &buffer_ta[i * elementlen_la], WORDLEN) == 0) {
-          valid = true;
+      switch (c) {
+        case CHAR_CTRLC:
+          quit(QUIT_ERR_STDIN);
           break;
-        }
-      }
-    }
-#else
-    size_t min = 0;
-    size_t max = count_la;
-    while (min < max) {
-      size_t index = min + (max - min) / 2;
-      int cmp = memcmp(buf, &buffer_la[index * WORDLEN], WORDLEN);
-      if (cmp == 0) {
-        valid = true;
-        break;
-      } else if (cmp < 0) {
-        max = index;
-      } else {
-        min = index + 1;
-      }
-    }
-    min = 0;
-    max = count_ta;
-    if (!valid) {
-      while (min < max) {
-        size_t index = min + (max - min) / 2;
-        int cmp = memcmp(buf, &buffer_ta[index * WORDLEN], WORDLEN);
-        if (cmp == 0) {
-          valid = true;
+        case CHAR_ENTER:
+          if (buf_count == WORDLEN) {
+            bool valid = false;
+            size_t min = 0;
+            size_t max = count_la;
+            while (min < max) {
+              size_t index = min + (max - min) / 2;
+              int cmp = memcmp(buf, &buffer_la[index * WORDLEN], WORDLEN);
+              if (cmp == 0) {
+                valid = true;
+                break;
+              } else if (cmp < 0) {
+                max = index;
+              } else {
+                min = index + 1;
+              }
+            }
+            min = 0;
+            max = count_ta;
+            if (!valid) {
+              while (min < max) {
+                size_t index = min + (max - min) / 2;
+                int cmp = memcmp(buf, &buffer_ta[index * WORDLEN], WORDLEN);
+                if (cmp == 0) {
+                  valid = true;
+                  break;
+                } else if (cmp < 0) {
+                  max = index;
+                } else {
+                  min = index + 1;
+                }
+              }
+            }
+
+            if (!valid) {
+              printf("\033[?25l\033[2K\r%.*s", buf_count, buf);
+              printf("\r\033[%uC\033[0;31mError: word not in the list\033[0m\r", WORDLEN + 1);
+              if (buf_count > 0) printf("\033[%uC", buf_count);
+              printf("\033[?25h");
+              continue;
+            } else input = false;
+          }
+          else {
+            printf("\033[?25l\033[2K\r%.*s", buf_count, buf);
+            printf("\r\033[%uC\033[0;31mError: word is too short\033[0m\r", WORDLEN + 1);
+            if (buf_count > 0) printf("\033[%uC", buf_count);
+            printf("\033[?25h");
+            break;
+          }
           break;
-        } else if (cmp < 0) {
-          max = index;
-        } else {
-          min = index + 1;
-        }
+        case CHAR_BACKSPACE:
+          if (buf_count > 0) {
+            printf("\033[?25l\r");
+            if (buf_count > 1) printf("\033[%uC", buf_count - 1);
+            printf("_\033[D\033[?25h");
+            buf_count -= 1;
+          }
+          break;
+        default:
+          if (buf_count < WORDLEN) {
+            if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
+            else if (c < 'a' || c > 'z') continue;
+            printf("\033[?25l\r");
+            if (buf_count > 0) printf("\033[%uC", buf_count);
+            printf("%c\033[?25h", c);
+            buf[buf_count] = (char) c;
+            buf_count += 1;
+          }
+          break;
       }
     }
-#endif
+    disable_raw_mode();
 
-    if (!valid) {
-      printf("\033[A\033[2K\r\033[%uC\033[0;31mError: word not in the list\033[0m\r", WORDLEN + 1);
-      continue;
-    }
-
-    goto break_end;
-
-break_short_r:
-    input = getchar();
-    if (input == EOF) goto exit_error_stdin;
-    goto break_short;
-break_short:
-    printf("\033[A\033[2K\r\033[%uC\033[0;31mError: word is too short\033[0m\r", WORDLEN + 1);
-    continue;
-break_long:
-    printf("\033[A\033[2K\r\033[%uC\033[0;31mError: word is too long\033[0m\r", WORDLEN + 1);
-    do {
-      input = getchar();
-      if (input == EOF) goto exit_error_stdin;
-    } while ((char)input != '\n');
-    continue;
-break_invalid_char:
-    printf("\033[A\033[2K\r\033[%uC\033[0;31mError: word contains invalid characters: only alphabetic characters are allowed (uppercase letters get normalized)\033[0m\r", WORDLEN + 1);
-    continue;
-break_end:
-    printf("\033[A\033[2K\r");
     size_t correct = 0;
     memset(used, 0, WORDLEN);
     for (int i = 0; i < WORDLEN; ++i) {
@@ -178,12 +221,13 @@ break_end:
         used[i] = true;
       }
     }
-    for (int i = 0; i < WORDLEN; ++i) {
+    printf("\033[?25l\033[2K\r");
+    for (size_t i = 0; i < WORDLEN; ++i) {
       char c = buf[i];
       bool contains = false;
 
       if (word[i] == c) {
-        printf("\033[%c8;2;" COLOR_GREEN "m", COLORBACKGROUND ? '4' : '3');
+        printf("\033[38;2;" COLOR_GREEN "m");
         correct += 1;
         letters_state[c - 'a'] = LETTER_RIGHT;
       }
@@ -198,16 +242,16 @@ break_end:
         }
 
         if (contains) {
-          printf("\033[%c8;2;" COLOR_YELLOW "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_YELLOW "m");
           if (letters_state[c - 'a'] == LETTER_UNKNOWN) letters_state[c - 'a'] = LETTER_WRONG;
         } else {
           if (letters_state[c - 'a'] == LETTER_UNKNOWN) letters_state[c - 'a'] = LETTER_ABSENT;
         }
       }
-      putc(c, stdout);
+      putchar(c);
       printf("\033[0m");
     }
-    putc('\n', stdout);
+    printf("\n\033[?25h");
 
 #if DISPLAYKEYBOARD
     printf("\n\033[2K");
@@ -217,16 +261,16 @@ break_end:
         case LETTER_UNKNOWN:
           break;
         case LETTER_RIGHT:
-          printf("\033[%c8;2;" COLOR_GREEN "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_GREEN "m");
           break;
         case LETTER_WRONG:
-          printf("\033[%c8;2;" COLOR_YELLOW "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_YELLOW "m");
           break;
         case LETTER_ABSENT:
-          printf("\033[%c8;2;" COLOR_GREY "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_GREY "m");
           break;
       }
-      putc(c, stdout);
+      putchar(c);
       printf("\033[0m");
     }
     printf("\n\033[2K");
@@ -236,16 +280,16 @@ break_end:
         case LETTER_UNKNOWN:
           break;
         case LETTER_RIGHT:
-          printf("\033[%c8;2;" COLOR_GREEN "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_GREEN "m");
           break;
         case LETTER_WRONG:
-          printf("\033[%c8;2;" COLOR_YELLOW "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_YELLOW "m");
           break;
         case LETTER_ABSENT:
-          printf("\033[%c8;2;" COLOR_GREY "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_GREY "m");
           break;
       }
-      putc(c, stdout);
+      putchar(c);
       printf("\033[0m");
     }
     printf("\n\033[2K ");
@@ -255,29 +299,25 @@ break_end:
         case LETTER_UNKNOWN:
           break;
         case LETTER_RIGHT:
-          printf("\033[%c8;2;" COLOR_GREEN "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_GREEN "m");
           break;
         case LETTER_WRONG:
-          printf("\033[%c8;2;" COLOR_YELLOW "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_YELLOW "m");
           break;
         case LETTER_ABSENT:
-          printf("\033[%c8;2;" COLOR_GREY "m", COLORBACKGROUND ? '4' : '3');
+          printf("\033[38;2;" COLOR_GREY "m");
           break;
       }
-      putc(c, stdout);
+      putchar(c);
       printf("\033[0m");
     }
-    putc('\n', stdout);
+    putchar('\n');
 
     printf("\033[4A\033[2K");
 #endif
 
     if (correct == WORDLEN) {
-#if DISPLAYKEYBOARD
-      printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
-#endif
-      printf("\nCorrect!\n");
-      return 0;
+      quit(QUIT_CORRECT);
     }
 
     t += 1;
@@ -285,35 +325,9 @@ break_end:
 
   printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[2A");
   printf("The word was '%.*s'\n", (unsigned int) WORDLEN, word);
-
-#ifdef TERMSAFETY
-  printf("Press enter to exit...");
-  (void)getchar();
-#endif
+  printf("%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
 
   fflush(stdout);
   return 0;
-
-exit_error_file:
-#if DISPLAYKEYBOARD
-  printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
-#endif
-  printf("\n\033[0;31mError opening a file\033[0m\n");
-  fflush(stdout);
-  return 1;
-exit_error_allocation:
-#if DISPLAYKEYBOARD
-  printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
-#endif
-  printf("\n\033[0;31mError allocating memory\033[0m\n");
-  fflush(stdout);
-  return 1;
-exit_error_stdin:
-#if DISPLAYKEYBOARD
-  printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
-#endif
-  printf("\n\033[0;31mError reading standard input\033[0m\nThe word was '%.*s'\n", (unsigned int) WORDLEN, word);
-  fflush(stdout);
-  return 1;
 }
 
