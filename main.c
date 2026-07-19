@@ -28,7 +28,7 @@ void disable_raw_mode() {
   tcsetattr(STDIN_FILENO, TCSANOW, &orig);
 }
 typedef int(*getch_t)(void);
-getch_t getch = getchar;
+getch_t _getch = getchar;
 #endif
 
 #ifndef DISPLAYKEYBOARD
@@ -134,15 +134,45 @@ int main(void) {
   memcpy(word, &buffer_la[word_index * WORDLEN], WORDLEN);
 
   for (size_t t = 0; t < TRIALS;) {
-    for (size_t i = 0; i < WORDLEN; ++i) putchar('_');
+    for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
     putchar('\r');
     unsigned char buf_count = 0;
+    unsigned char buf_cursor = 0;
     bool input = true;
     enable_raw_mode();
     while (input) {
       int c = _getch();
 
       switch (c) {
+        case 0:
+        case 224:
+          switch (_getch()) {
+            case 75:
+              goto case_left;
+            case 77:
+              goto case_right;
+            case 83:
+              goto case_del;
+          }
+          break;
+        case 27:
+          switch (_getch()) {
+            case 91:
+            case 79:
+              switch (_getch()) {
+                case 51:
+                  switch (_getch()) {
+                    case 126:
+                      goto case_del;
+                  }
+                  break;
+                case 68:
+                  goto case_left;
+                case 67:
+                  goto case_right;
+              }
+          }
+          break;
         case CHAR_CTRLC:
           quit(QUIT_ERR_STDIN);
           break;
@@ -182,50 +212,118 @@ int main(void) {
 
             if (!valid) {
               hide_cursor();
-              printf("\033[2K\r%.*s", buf_count, buf);
+              printf("\033[2K\r");
+              for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
+              putchar('\r');
+              for (unsigned char i = 0; i < buf_count; ++i) {
+                if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
+                  set_color_grey();
+                putchar(buf[i]);
+                reset_styles();
+              }
               printf("\r\033[%uC\033[0;31mError: word not in the list\r", WORDLEN + 1);
               reset_styles();
-              if (buf_count > 0) printf("\033[%uC", buf_count);
+              if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
               show_cursor();
               continue;
             } else input = false;
           }
           else {
             hide_cursor();
-            printf("\033[2K\r%.*s", buf_count, buf);
+            printf("\033[2K\r");
+            for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
+            putchar('\r');
+            for (unsigned char i = 0; i < buf_count; ++i) {
+              if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
+                set_color_grey();
+              putchar(buf[i]);
+              reset_styles();
+            }
             printf("\r\033[%uC\033[0;31mError: word is too short\r", WORDLEN + 1);
             reset_styles();
-            if (buf_count > 0) printf("\033[%uC", buf_count);
+            if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
             show_cursor();
             break;
           }
           break;
         case CHAR_BACKSPACE:
-          if (buf_count > 0) {
-            hide_cursor();
-            printf("\r");
-            if (buf_count > 1) printf("\033[%uC", buf_count - 1);
-            printf("_\033[D");
-            show_cursor();
+          if (buf_cursor > 0) {
+            memmove(buf + buf_cursor - 1, buf + buf_cursor, buf_count - buf_cursor);
             buf_count -= 1;
+            buf_cursor -= 1;
+            hide_cursor();
+            printf("\033[2K\r");
+            for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
+            putchar('\r');
+            for (unsigned char i = 0; i < buf_count; ++i) {
+              if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
+                set_color_grey();
+              putchar(buf[i]);
+              reset_styles();
+            }
+            putchar('\r');
+            if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
+            show_cursor();
           }
           break;
         default:
           if (buf_count < WORDLEN) {
             if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
             else if (c < 'a' || c > 'z') continue;
-            hide_cursor();
-            printf("\r");
-            if (buf_count > 0) printf("\033[%uC", buf_count);
-            if (letters_state[c - 'a'] == LETTER_ABSENT) set_color_grey();
-            putchar(c);
-            reset_styles();
-            show_cursor();
-            buf[buf_count] = (char) c;
+            memmove(buf + buf_cursor + 1, buf + buf_cursor, buf_count - buf_cursor);
+            buf[buf_cursor] = (char) c;
             buf_count += 1;
+            buf_cursor += 1;
+            hide_cursor();
+            printf("\033[2K\r");
+            for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
+            putchar('\r');
+            for (unsigned char i = 0; i < buf_count; ++i) {
+              if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
+                set_color_grey();
+              putchar(buf[i]);
+              reset_styles();
+            }
+            putchar('\r');
+            if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
+            show_cursor();
           }
           break;
       }
+      goto case_exit;
+      case_left:
+        if (buf_cursor > 0) {
+          buf_cursor -= 1;
+          printf("\033[D");
+        }
+        continue;
+      case_right:
+        if (buf_cursor < buf_count && buf_cursor < WORDLEN) {
+          buf_cursor += 1;
+          printf("\033[C");
+        }
+        continue;
+      case_del:
+      if (buf_cursor < buf_count) {
+        memmove(buf + buf_cursor, buf + buf_cursor + 1, buf_count - buf_cursor);
+        buf_count -= 1;
+        hide_cursor();
+        printf("\033[2K\r");
+        for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
+        putchar('\r');
+        for (unsigned char i = 0; i < buf_count; ++i) {
+          if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
+            set_color_grey();
+          putchar(buf[i]);
+          reset_styles();
+        }
+        putchar('\r');
+        if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
+        show_cursor();
+      }
+      continue;
+      case_exit:
+        continue;
     }
     disable_raw_mode();
 
