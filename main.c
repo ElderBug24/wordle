@@ -61,9 +61,12 @@ enum {
 #define KEYBOARD_ROW2 "asdfghjkl"
 #define KEYBOARD_ROW3 "zxcvbnm"
 
-#define COLOR_GREEN "83;141;78"
-#define COLOR_YELLOW "181;159;59"
-#define COLOR_GREY "58;58;60"
+static inline void set_color_green(void) { printf("\033[38;2;83;141;78m"); }
+static inline void set_color_yellow(void) { printf("\033[38;2;181;159;59m"); }
+static inline void set_color_grey(void) { printf("\033[38;2;58;58;60m"); }
+static inline void hide_cursor(void) { printf("\033[?25l"); }
+static inline void show_cursor(void) { printf("\033[?25h"); }
+static inline void reset_styles(void) { printf("\033[0m"); }
 
 char word[WORDLEN];
 size_t word_index;
@@ -87,7 +90,9 @@ void quit(quit_code_e code) {
 #if DISPLAYKEYBOARD
       printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
 #endif
-      printf("\n\033[0;31mError reading standard input\033[0m\nThe word was '%.*s'\n%.*s\n", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
+      printf("\n\033[0;31mError reading standard input");
+      reset_styles();
+      printf("\nThe word was '%.*s'\n%.*s\n", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
       fflush(stdout);
       exit(1);
     }
@@ -125,12 +130,12 @@ int main(void) {
   word_index = (size_t) rand() % count_la;
 
   printf("Welcome to Wordle!\n");
-  for (size_t i = 0; i < WORDLEN; ++i) putchar('_');
-  putchar('\r');
   uint8_t letters_state[LETTERSCOUNT] = {0};
   memcpy(word, &buffer_la[word_index * WORDLEN], WORDLEN);
 
   for (size_t t = 0; t < TRIALS;) {
+    for (size_t i = 0; i < WORDLEN; ++i) putchar('_');
+    putchar('\r');
     unsigned char buf_count = 0;
     bool input = true;
     enable_raw_mode();
@@ -176,26 +181,32 @@ int main(void) {
             }
 
             if (!valid) {
-              printf("\033[?25l\033[2K\r%.*s", buf_count, buf);
-              printf("\r\033[%uC\033[0;31mError: word not in the list\033[0m\r", WORDLEN + 1);
+              hide_cursor();
+              printf("\033[2K\r%.*s", buf_count, buf);
+              printf("\r\033[%uC\033[0;31mError: word not in the list\r", WORDLEN + 1);
+              reset_styles();
               if (buf_count > 0) printf("\033[%uC", buf_count);
-              printf("\033[?25h");
+              show_cursor();
               continue;
             } else input = false;
           }
           else {
-            printf("\033[?25l\033[2K\r%.*s", buf_count, buf);
-            printf("\r\033[%uC\033[0;31mError: word is too short\033[0m\r", WORDLEN + 1);
+            hide_cursor();
+            printf("\033[2K\r%.*s", buf_count, buf);
+            printf("\r\033[%uC\033[0;31mError: word is too short\r", WORDLEN + 1);
+            reset_styles();
             if (buf_count > 0) printf("\033[%uC", buf_count);
-            printf("\033[?25h");
+            show_cursor();
             break;
           }
           break;
         case CHAR_BACKSPACE:
           if (buf_count > 0) {
-            printf("\033[?25l\r");
+            hide_cursor();
+            printf("\r");
             if (buf_count > 1) printf("\033[%uC", buf_count - 1);
-            printf("_\033[D\033[?25h");
+            printf("_\033[D");
+            show_cursor();
             buf_count -= 1;
           }
           break;
@@ -203,9 +214,13 @@ int main(void) {
           if (buf_count < WORDLEN) {
             if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
             else if (c < 'a' || c > 'z') continue;
-            printf("\033[?25l\r");
+            hide_cursor();
+            printf("\r");
             if (buf_count > 0) printf("\033[%uC", buf_count);
-            printf("%c\033[?25h", c);
+            if (letters_state[c - 'a'] == LETTER_ABSENT) set_color_grey();
+            putchar(c);
+            reset_styles();
+            show_cursor();
             buf[buf_count] = (char) c;
             buf_count += 1;
           }
@@ -221,13 +236,14 @@ int main(void) {
         used[i] = true;
       }
     }
-    printf("\033[?25l\033[2K\r");
+    hide_cursor();
+    printf("\033[2K\r");
     for (size_t i = 0; i < WORDLEN; ++i) {
       char c = buf[i];
       bool contains = false;
 
       if (word[i] == c) {
-        printf("\033[38;2;" COLOR_GREEN "m");
+        set_color_green();
         correct += 1;
         letters_state[c - 'a'] = LETTER_RIGHT;
       }
@@ -242,16 +258,17 @@ int main(void) {
         }
 
         if (contains) {
-          printf("\033[38;2;" COLOR_YELLOW "m");
+          set_color_yellow();
           if (letters_state[c - 'a'] == LETTER_UNKNOWN) letters_state[c - 'a'] = LETTER_WRONG;
         } else {
           if (letters_state[c - 'a'] == LETTER_UNKNOWN) letters_state[c - 'a'] = LETTER_ABSENT;
         }
       }
       putchar(c);
-      printf("\033[0m");
+      reset_styles();
     }
-    printf("\n\033[?25h");
+    printf("\n");
+    show_cursor();
 
 #if DISPLAYKEYBOARD
     printf("\n\033[2K");
@@ -261,17 +278,17 @@ int main(void) {
         case LETTER_UNKNOWN:
           break;
         case LETTER_RIGHT:
-          printf("\033[38;2;" COLOR_GREEN "m");
+          set_color_green();
           break;
         case LETTER_WRONG:
-          printf("\033[38;2;" COLOR_YELLOW "m");
+          set_color_yellow();
           break;
         case LETTER_ABSENT:
-          printf("\033[38;2;" COLOR_GREY "m");
+          set_color_grey();
           break;
       }
       putchar(c);
-      printf("\033[0m");
+      reset_styles();
     }
     printf("\n\033[2K");
     for (size_t i = 0; i < strlen(KEYBOARD_ROW2); ++i) {
@@ -280,17 +297,17 @@ int main(void) {
         case LETTER_UNKNOWN:
           break;
         case LETTER_RIGHT:
-          printf("\033[38;2;" COLOR_GREEN "m");
+          set_color_green();
           break;
         case LETTER_WRONG:
-          printf("\033[38;2;" COLOR_YELLOW "m");
+          set_color_yellow();
           break;
         case LETTER_ABSENT:
-          printf("\033[38;2;" COLOR_GREY "m");
+          set_color_grey();
           break;
       }
       putchar(c);
-      printf("\033[0m");
+      reset_styles();
     }
     printf("\n\033[2K ");
     for (size_t i = 0; i < strlen(KEYBOARD_ROW3); ++i) {
@@ -299,17 +316,17 @@ int main(void) {
         case LETTER_UNKNOWN:
           break;
         case LETTER_RIGHT:
-          printf("\033[38;2;" COLOR_GREEN "m");
+          set_color_green();
           break;
         case LETTER_WRONG:
-          printf("\033[38;2;" COLOR_YELLOW "m");
+          set_color_yellow();
           break;
         case LETTER_ABSENT:
-          printf("\033[38;2;" COLOR_GREY "m");
+          set_color_grey();
           break;
       }
       putchar(c);
-      printf("\033[0m");
+      reset_styles();
     }
     putchar('\n');
 
