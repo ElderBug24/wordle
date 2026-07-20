@@ -33,8 +33,7 @@ void disable_raw_mode() {
 #define DISPLAYKEYBOARD true
 #endif
 
-#include "wordle-La-compact.h"
-#include "wordle-Ta-compact.h"
+#include "wordle-list-compact.h"
 #include "definitions.h"
 
 #ifndef WORDLEN
@@ -121,17 +120,15 @@ enum {
 int main(void) {
   signal(SIGINT, handler);
 
-  size_t count_la = file_la_len / WORDLEN;
-  size_t count_ta = file_ta_len / WORDLEN;
   char buf[WORDLEN];
   bool used[WORDLEN];
 
   srand((unsigned)time(NULL));
-  word_index = (size_t) rand() % count_la;
+  word_index = wordle_valid_indices[(size_t) rand() % wordle_valid_indices_count];
 
   printf("Welcome to Wordle!\n");
   unsigned char letters_state[LETTERSCOUNT] = {0};
-  memcpy(word, &buffer_la[word_index * WORDLEN], WORDLEN);
+  memcpy(word, &wordle_buffer[word_index * WORDLEN], WORDLEN);
 
   for (size_t t = 0; t < TRIALS; ++t) {
     for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
@@ -180,10 +177,10 @@ int main(void) {
           if (buf_count == WORDLEN) {
             bool valid = false;
             size_t min = 0;
-            size_t max = count_la;
+            size_t max = wordle_buffer_count;
             while (min < max) {
               size_t index = min + (max - min) / 2;
-              int cmp = memcmp(buf, &buffer_la[index * WORDLEN], WORDLEN);
+              int cmp = memcmp(buf, &wordle_buffer[index * WORDLEN], WORDLEN);
               if (cmp == 0) {
                 valid = true;
                 break;
@@ -191,22 +188,6 @@ int main(void) {
                 max = index;
               } else {
                 min = index + 1;
-              }
-            }
-            if (!valid) {
-              min = 0;
-              max = count_ta;
-              while (min < max) {
-                size_t index = min + (max - min) / 2;
-                int cmp = memcmp(buf, &buffer_ta[index * WORDLEN], WORDLEN);
-                if (cmp == 0) {
-                  valid = true;
-                  break;
-                } else if (cmp < 0) {
-                  max = index;
-                } else {
-                  min = index + 1;
-                }
               }
             }
 
