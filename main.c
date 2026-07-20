@@ -1,6 +1,5 @@
 #include <signal.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,8 +26,7 @@ void enable_raw_mode() {
 void disable_raw_mode() {
   tcsetattr(STDIN_FILENO, TCSANOW, &orig);
 }
-typedef int(*getch_t)(void);
-getch_t _getch = getchar;
+#define _getch getchar
 #endif
 
 #ifndef DISPLAYKEYBOARD
@@ -108,12 +106,14 @@ void handler(int sig) {
 enum {
   CHAR_ENTER     =  13,
   CHAR_BACKSPACE =   8,
+  CHAR_TAB       =   9,
   CHAR_CTRLC     =   3
 };
 #else
 enum {
   CHAR_ENTER     =  10,
   CHAR_BACKSPACE = 127,
+  CHAR_TAB       =   9,
   CHAR_CTRLC     =   3
 };
 #endif
@@ -130,10 +130,10 @@ int main(void) {
   word_index = (size_t) rand() % count_la;
 
   printf("Welcome to Wordle!\n");
-  uint8_t letters_state[LETTERSCOUNT] = {0};
+  unsigned char letters_state[LETTERSCOUNT] = {0};
   memcpy(word, &buffer_la[word_index * WORDLEN], WORDLEN);
 
-  for (size_t t = 0; t < TRIALS;) {
+  for (size_t t = 0; t < TRIALS; ++t) {
     for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
     putchar('\r');
     unsigned char buf_count = 0;
@@ -193,9 +193,9 @@ int main(void) {
                 min = index + 1;
               }
             }
-            min = 0;
-            max = count_ta;
             if (!valid) {
+              min = 0;
+              max = count_ta;
               while (min < max) {
                 size_t index = min + (max - min) / 2;
                 int cmp = memcmp(buf, &buffer_ta[index * WORDLEN], WORDLEN);
@@ -256,7 +256,7 @@ int main(void) {
             for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
             putchar('\r');
             for (unsigned char i = 0; i < buf_count; ++i) {
-              if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
+              if (letters_state[buf[i] - 'a'] == LETTER_ABSENT || buf[i] == '_')
                 set_color_grey();
               putchar(buf[i]);
               reset_styles();
@@ -267,9 +267,10 @@ int main(void) {
           }
           break;
         default:
+          if (c == ' ') c = '_';
           if (buf_count < WORDLEN) {
             if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
-            else if (c < 'a' || c > 'z') continue;
+            else if ((c < 'a' || c > 'z') && c != '_') continue;
             memmove(buf + buf_cursor + 1, buf + buf_cursor, buf_count - buf_cursor);
             buf[buf_cursor] = (char) c;
             buf_count += 1;
@@ -279,7 +280,7 @@ int main(void) {
             for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
             putchar('\r');
             for (unsigned char i = 0; i < buf_count; ++i) {
-              if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
+              if (letters_state[buf[i] - 'a'] == LETTER_ABSENT || buf[i] == '_')
                 set_color_grey();
               putchar(buf[i]);
               reset_styles();
@@ -304,24 +305,24 @@ int main(void) {
         }
         continue;
       case_del:
-      if (buf_cursor < buf_count) {
-        memmove(buf + buf_cursor, buf + buf_cursor + 1, buf_count - buf_cursor);
-        buf_count -= 1;
-        hide_cursor();
-        printf("\033[2K\r");
-        for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
-        putchar('\r');
-        for (unsigned char i = 0; i < buf_count; ++i) {
-          if (letters_state[buf[i] - 'a'] == LETTER_ABSENT)
-            set_color_grey();
-          putchar(buf[i]);
-          reset_styles();
+        if (buf_cursor < buf_count) {
+          memmove(buf + buf_cursor, buf + buf_cursor + 1, buf_count - buf_cursor);
+          buf_count -= 1;
+          hide_cursor();
+          printf("\033[2K\r");
+          for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
+          putchar('\r');
+          for (unsigned char i = 0; i < buf_count; ++i) {
+            if (letters_state[buf[i] - 'a'] == LETTER_ABSENT || buf[i] == '_')
+              set_color_grey();
+            putchar(buf[i]);
+            reset_styles();
+          }
+          putchar('\r');
+          if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
+          show_cursor();
         }
-        putchar('\r');
-        if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
-        show_cursor();
-      }
-      continue;
+        continue;
       case_exit:
         continue;
     }
@@ -344,8 +345,7 @@ int main(void) {
         set_color_green();
         correct += 1;
         letters_state[c - 'a'] = LETTER_RIGHT;
-      }
-      else {
+      } else {
         for (size_t j = 0; j < WORDLEN; ++j) {
           if (i == j) continue;
           if (word[j] == c && !used[j]) {
@@ -369,6 +369,7 @@ int main(void) {
     show_cursor();
 
 #if DISPLAYKEYBOARD
+    hide_cursor();
     printf("\n\033[2K");
     for (size_t i = 0; i < strlen(KEYBOARD_ROW1); ++i) {
       char c = KEYBOARD_ROW1[i];
@@ -426,16 +427,13 @@ int main(void) {
       putchar(c);
       reset_styles();
     }
-    putchar('\n');
-
-    printf("\033[4A\033[2K");
+    printf("\n\033[4A\033[2K");
+    show_cursor();
 #endif
 
     if (correct == WORDLEN) {
       quit(QUIT_CORRECT);
     }
-
-    t += 1;
   }
 
   printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[2A");
