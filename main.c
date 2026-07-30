@@ -67,6 +67,7 @@ static inline void reset_styles(void) { printf("\033[0m"); }
 
 char word[WORDLEN];
 size_t word_index;
+size_t valid_word_index;
 
 typedef enum {
   QUIT_CORRECT,
@@ -79,7 +80,7 @@ void quit(quit_code_e code) {
 #if DISPLAYKEYBOARD
       printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
 #endif
-      printf("\nCorrect!\n%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
+      printf("\nCorrect!\n%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
       fflush(stdout);
       exit(0);
     }
@@ -89,7 +90,7 @@ void quit(quit_code_e code) {
 #endif
       printf("\n\033[0;31mError reading standard input");
       reset_styles();
-      printf("\nThe word was '%.*s'\n%.*s\n", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
+      printf("\nThe word was '%.*s'\n%.*s\n", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
       fflush(stdout);
       exit(1);
     }
@@ -124,7 +125,8 @@ int main(void) {
   bool used[WORDLEN];
 
   srand((unsigned)time(NULL));
-  word_index = wordle_valid_indices[(size_t) rand() % wordle_valid_indices_count];
+  valid_word_index = (size_t) rand() % wordle_valid_indices_count;
+  word_index = wordle_valid_indices[valid_word_index];
 
   printf("Welcome to Wordle!\n");
   unsigned char letters_state[LETTERSCOUNT] = {0};
@@ -419,7 +421,7 @@ int main(void) {
 
   printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[2A");
   printf("The word was '%.*s'\n", (unsigned int) WORDLEN, word);
-  printf("%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[word_index * WORDDEFINITIONLEN]);
+  printf("%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
 
   fflush(stdout);
   return 0;
