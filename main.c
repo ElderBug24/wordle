@@ -81,14 +81,14 @@ void quit(quit_code_e code) {
 #endif
   switch (code) {
     case QUIT_CORRECT: {
-      printf("\nCorrect!\n%.*s\n\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
+      printf("\nCorrect!\n%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
       fflush(stdout);
       exit(0);
     }
     case QUIT_ERR_STDIN: {
       printf("\n\033[0;31mError reading standard input");
       reset_styles();
-      printf("\nThe word was '%.*s'\n%.*s\n", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
+      printf("\nThe word was '%.*s'\n%.*s", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
       fflush(stdout);
       exit(1);
     }
@@ -419,7 +419,7 @@ int main(void) {
 
   printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[2A");
   printf("The word was '%.*s'\n", (unsigned int) WORDLEN, word);
-  printf("%.*s\n\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
+  printf("%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
 
   fflush(stdout);
   return 0;
