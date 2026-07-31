@@ -250,7 +250,7 @@ int main(void) {
           if (c == ' ') c = '_';
           if (buf_count < WORDLEN) {
             if (c >= 'A' && c <= 'Z') c += ('a' - 'A');
-            else if ((c < 'a' || c > 'z') && c != '_') continue;
+            else if (!((c >= 'a' && c <= 'z') || c == '_')) continue;
             memmove(buf + buf_cursor + 1, buf + buf_cursor, buf_count - buf_cursor);
             buf[buf_cursor] = (char) c;
             buf_count += 1;
