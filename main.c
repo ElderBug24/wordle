@@ -75,19 +75,17 @@ typedef enum {
 } quit_code_e;
 
 void quit(quit_code_e code) {
+    printf("\033[2K");
+#if DISPLAYKEYBOARD
+    printf("\n\033[2K\n\033[2K\n\033[2K\033[3A");
+#endif
   switch (code) {
     case QUIT_CORRECT: {
-#if DISPLAYKEYBOARD
-      printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
-#endif
-      printf("\nCorrect!\n%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
+      printf("\nCorrect!\n%.*s\n\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
       fflush(stdout);
       exit(0);
     }
     case QUIT_ERR_STDIN: {
-#if DISPLAYKEYBOARD
-      printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[3A");
-#endif
       printf("\n\033[0;31mError reading standard input");
       reset_styles();
       printf("\nThe word was '%.*s'\n%.*s\n", (unsigned int) WORDLEN, word, (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
@@ -210,8 +208,7 @@ int main(void) {
               show_cursor();
               continue;
             } else input = false;
-          }
-          else {
+          } else {
             hide_cursor();
             printf("\033[2K\r");
             for (unsigned char i = 0; i < WORDLEN; ++i) putchar('_');
@@ -342,6 +339,7 @@ int main(void) {
           set_color_yellow();
           if (letters_state[c - 'a'] == LETTER_UNKNOWN) letters_state[c - 'a'] = LETTER_WRONG;
         } else {
+	    set_color_grey();
           if (letters_state[c - 'a'] == LETTER_UNKNOWN) letters_state[c - 'a'] = LETTER_ABSENT;
         }
       }
@@ -421,7 +419,7 @@ int main(void) {
 
   printf("\033[2K\n\033[2K\n\033[2K\n\033[2K\033[2A");
   printf("The word was '%.*s'\n", (unsigned int) WORDLEN, word);
-  printf("%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
+  printf("%.*s\n\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
 
   fflush(stdout);
   return 0;
