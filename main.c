@@ -53,7 +53,6 @@ enum {
 static inline void set_color_green(void) { printf("\033[38;2;83;141;78m"); }
 static inline void set_color_yellow(void) { printf("\033[38;2;181;159;59m"); }
 static inline void set_color_grey(void) { printf("\033[38;2;58;58;60m"); }
-static inline void set_background_color_white(void) { printf("\033[38;2;0;0;0m\033[48;2;255;255;255m"); }
 static inline void hide_cursor(void) { printf("\033[?25l"); }
 static inline void show_cursor(void) { printf("\033[?25h"); }
 static inline void reset_styles(void) { printf("\033[0m"); }
@@ -186,12 +185,12 @@ int main(void) {
         case CHAR_ENTER:
           if (buf_count == WORDLEN) {
             bool valid = false;
-	    for (size_t i = 0; i < PI_BUF_LEN - WORDLEN + 1; ++i) {
+            for (size_t i = 0; i < PI_BUF_LEN - WORDLEN + 1; ++i) {
               if (memcmp(buf, &PI_BUF[i], WORDLEN) == 0) {
                 valid = true;
-		break;
-	      }
-	    }
+                break;
+              }
+            }
 
             if (!valid) {
               hide_cursor();
@@ -251,7 +250,7 @@ int main(void) {
         default:
           if (c == ' ') c = '_';
           if (buf_count < WORDLEN) {
-            if (c < '0' || c > '9') continue;
+            if (!((c >= '0' && c <= '9') || c == '_')) continue;
             memmove(buf + buf_cursor + 1, buf + buf_cursor, buf_count - buf_cursor);
             buf[buf_cursor] = (char) c;
             buf_count += 1;
