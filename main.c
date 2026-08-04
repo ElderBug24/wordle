@@ -422,6 +422,6 @@ int main(void) {
   printf("%.*s\n", (unsigned int) WORDDEFINITIONLEN, &buffer_definitions[valid_word_index * WORDDEFINITIONLEN]);
 
   fflush(stdout);
-  return 0;
+  return 1;
 }
 
