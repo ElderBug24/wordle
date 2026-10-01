@@ -203,7 +203,7 @@ int main(void) {
                 putchar(buf[i]);
                 reset_styles();
               }
-              printf("\r\033[%uC\033[0;31mError: word not in the list\r", WORDLEN + 1);
+              printf("\r\033[%uC\033[0;31mError: invalid decimals\r", WORDLEN + 1);
               reset_styles();
               if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
               show_cursor();
@@ -220,7 +220,7 @@ int main(void) {
               putchar(buf[i]);
               reset_styles();
             }
-            printf("\r\033[%uC\033[0;31mError: word is too short\r", WORDLEN + 1);
+            printf("\r\033[%uC\033[0;31mError: input is too short\r", WORDLEN + 1);
             reset_styles();
             if (buf_cursor > 0) printf("\033[%uC", buf_cursor);
             show_cursor();
